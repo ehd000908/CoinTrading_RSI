@@ -10,8 +10,8 @@ import openpyxl
 import pprint
 
 
-access = "vfFhqF1xjxeMwUxlDAqIH6Q77hygh3A6bJfyQBiQ"
-secret = "25YQrCCvcz3of1hpdo4wNs2DRa0ibQvQ9sM1DY3f"
+access = ""
+secret = ""
 
 # 로그인
 upbit = pyupbit.Upbit(access, secret)
