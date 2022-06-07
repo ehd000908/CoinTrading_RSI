@@ -15,16 +15,16 @@ import matplotlib.pyplot as plt
 from scipy import interpolate
 from pandas_datareader import data 
 
-access = "vfFhqF1xjxeMwUxlDAqIH6Q77hygh3A6bJfyQBiQ"
-secret = "25YQrCCvcz3of1hpdo4wNs2DRa0ibQvQ9sM1DY3f"
+access = ""
+secret = ""
 
 # 로그인
 upbit = pyupbit.Upbit(access, secret)
 print("Autotrade Start")
 
 # 텔레그램봇
-token = "5381280171:AAGs86pwfWOaEHMl8odcNiZzcLfxIQRrj4k"
-user_id = 5359786981
+token = ""
+user_id = 
 bot = telegram.Bot(token)
 updater = Updater(token=token, use_context=True)
 dispatcher = updater.dispatcher
