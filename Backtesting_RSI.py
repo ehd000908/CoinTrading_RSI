@@ -10,8 +10,8 @@ from telegram.ext import Updater
 from telegram.ext import MessageHandler, Filters
 
 
-access = ""
-secret = ""
+access = "vfFhqF1xjxeMwUxlDAqIH6Q77hygh3A6bJfyQBiQ"
+secret = "25YQrCCvcz3of1hpdo4wNs2DRa0ibQvQ9sM1DY3f"
 
 # 로그인
 upbit = pyupbit.Upbit(access, secret)
@@ -298,7 +298,7 @@ for i in range(7,9999):
         # 추가매수
         if (-(bb - df['open'][i])) / bb*100 < -1 and df['RSI'][i-1] < tt and df['RSI'][i-1] < df['RSI'][i]:
 
-            if bp < kk:   
+            if acum*2 < kk:   
 
                 buy = df['open'][i]
                 df['매수가'][i] = buy
@@ -320,7 +320,7 @@ for i in range(7,9999):
 
                 counting = counting + 1
 
-            if bp > kk:
+            if acum*2 > kk:
 
                 buy = df['open'][i]
                 df['매수가'][i] = buy
@@ -335,7 +335,7 @@ for i in range(7,9999):
                 f.close()
 
 
-                df['매수금액'][i] = kk-acum
+                df['매수금액'][i] = acum-kk
                 df['매수누적금액'][i] = kk
 
                 f = open("backtest_acum_price.txt", "w")
@@ -345,7 +345,7 @@ for i in range(7,9999):
                 counting = counting + 1
 
         # 매도
-        if df['RSI'][i-1] > 80 and df['RSI'][i-1] > df['RSI'][i]:
+        if df['RSI'][i-1] > 70 and df['RSI'][i-1] > df['RSI'][i]:
 
             sell = df['open'][i]
             df['매도가'][i] = sell
@@ -386,7 +386,7 @@ for i in range(7,9999):
             k = 0
             counting = 1
 
-        if acum == kk and (-(bb - df['low'][i])) / bb*100 < -5:
+        if acum == kk and (-(bb - df['low'][i])) / bb*100 < -3:
 
             sell = df['low'][i]
             df['매도가'][i] = sell
@@ -427,4 +427,5 @@ for i in range(7,9999):
             k = 0
             counting = 1
 
-df.to_excel("backtest_RSI.xlsx")
+dff = df.reset_index(drop=True)
+dff.to_excel("backtest_RSI.xlsx")
