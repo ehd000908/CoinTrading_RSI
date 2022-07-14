@@ -20,7 +20,7 @@ print("Autotrade Start")
 
 # 텔레그램봇
 token = ""
-user_id = 
+user_id =
 bot = telegram.Bot(token)
 updater = Updater(token=token, use_context=True)
 dispatcher = updater.dispatcher
@@ -263,7 +263,7 @@ while True:
         before_rsi = df['RSI'][-2]
 
         # 첫 매수
-        # RSI 꺾인 지점이 25미만이면 매수
+        # RSI 꺾인 지점이 30미만이면 매수
         if before_rsi < tt and before_rsi < now_rsi and c.get_balance() == 0:
 
             if c.get_balance_krw() > 0:
@@ -299,12 +299,12 @@ while True:
                 s.save_avg_price()
                 s.save_counting()
 
-                # 매매일지 작성
+                # 매매일지 작성  
                 wtl = write_trading_log(t, accumulated_volume, ap, accumulated_volume, "", "", r.read_first_krw())
                 wtl.write_trade_log()
 
         # 현 상태 표시
-        if c.get_balance() == 0:
+        if c.get_balance() == 0:             
 
             print("매수 대기중")
             print(c.get_current_price())
@@ -328,9 +328,9 @@ while True:
 
             print("현재 수익률:", now_earning_rate,"%")
             print("현재 수익금:", round(accumulated_volume * now_earning_rate / 100), "KRW")
-            print("기준 수익금:", round((c.get_balance()*c.get_current_price()*0.998) - accumulated_volume), "KRW")
+            print("기준 수익금:", round((accumulated_volume * now_earning_rate / 100)-accumulated_volume*0.002), "KRW")
             print("현재가 :", round(c.get_current_price()), "KRW")
-            print(accumulated_volume)
+            
             start_handler = MessageHandler(Filters.text & (~Filters.command), send_message_bot)
             dispatcher.add_handler(start_handler)
 
@@ -349,8 +349,8 @@ while True:
 
                     mp = -1
                 
-                # 손실률 1% 이하이고 RSI 꺾인 부분 25 이하이면 현재 보유 수량만큼 추가 매수
-                if now_earning_rate < float(mp):
+                # 손실률 1% 이하이고 RSI 꺾인 부분 30 이하이면 현재 보유 수량만큼 추가 매수
+                if now_earning_rate < float(mp): 
                     
                     if before_rsi < tt and before_rsi < now_rsi:
                         
@@ -421,7 +421,7 @@ while True:
 
 
                             # 물 탈 금액 부족할 때 최종 매수
-                            if 5000 < c.get_balance_krw() < vol*(2**(counting-1))*0.9995:
+                            else:
 
                                 fb = c.get_balance_krw()*0.9995
 
@@ -440,7 +440,7 @@ while True:
                                 ap = float(c.get_avg_price())
 
                                 # 축적 매수량
-                                accumulated_volume = r.read_accumulated_volume() + c.get_balance_krw*0.9995
+                                accumulated_volume = r.read_accumulated_volume() + fb
 
 
                                 # 정보 저장
@@ -458,33 +458,31 @@ while True:
 
 
             # RSI 꺾인 지점 70 이상이면 전량 시장가 매도
-            if before_rsi > 70 and before_rsi > now_rsi:
+            if before_rsi > 70 and before_rsi > now_rsi and (accumulated_volume * now_earning_rate / 100)-accumulated_volume*0.002 > 0:
 
-                if (c.get_balance()*c.get_current_price()*0.998) - accumulated_volume > 0:
+                upbit.sell_market_order(btc, c.get_balance())
 
-                    upbit.sell_market_order(btc, c.get_balance())
+                # 최종 수익률
+                earning = c.get_balance_krw() - first_krw_balance
+                earning_rate = earning / first_krw_balance
 
-                    # 최종 수익률
-                    earning = c.get_balance_krw() - first_krw_balance
-                    earning_rate = earning / first_krw_balance
+                # 텔레그램 봇으로 알림
+                s1 = "전량 익절 완료 \n"
+                s2 = "최종 수익률 : " + str(earning_rate) + " %\n"
+                s3 = "최종 수익금 : " + str(earning) + " KRW"
 
-                    # 텔레그램 봇으로 알림
-                    s1 = "전량 익절 완료 \n"
-                    s2 = "최종 수익률 : " + str(earning_rate) + " %\n"
-                    s3 = "최종 수익금 : " + str(earning) + " KRW"
+                ss = s1+s2+s3
 
-                    ss = s1+s2+s3
-
-                    bot.sendMessage(chat_id=user_id, text=ss)
+                bot.sendMessage(chat_id=user_id, text=ss)
 
 
-                    # 매도 시간
-                    t = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                # 매도 시간
+                t = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 
-                    # 매매일지 작성
-                    wtl = write_trading_log(t, "", "", "", earning, earning_rate, c.get_balance_krw())
-                    wtl.write_trade_log()
+                # 매매일지 작성
+                wtl = write_trading_log(t, "", "", "", earning, earning_rate, c.get_balance_krw())
+                wtl.write_trade_log()
 
 
             # 원화 잔고 부족, 손실률 몇 % 이하시 전량 시장가 매도
