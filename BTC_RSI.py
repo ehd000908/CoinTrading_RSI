@@ -11,16 +11,16 @@ from telegram.ext import Updater
 from telegram.ext import MessageHandler, Filters
 
 
-access = ""
-secret = ""
+access = "vfFhqF1xjxeMwUxlDAqIH6Q77hygh3A6bJfyQBiQ"
+secret = "25YQrCCvcz3of1hpdo4wNs2DRa0ibQvQ9sM1DY3f"
 
 # 로그인
 upbit = pyupbit.Upbit(access, secret)
 print("Autotrade Start")
 
 # 텔레그램봇
-token = ""
-user_id =
+token = "5381280171:AAGs86pwfWOaEHMl8odcNiZzcLfxIQRrj4k"
+user_id = 5359786981
 bot = telegram.Bot(token)
 updater = Updater(token=token, use_context=True)
 dispatcher = updater.dispatcher
@@ -107,12 +107,14 @@ class write_trading_log(object):
 #---------------------------------------------------------
 class save(object):
 
-    def __init__(self,a,b,c,d,e):
+    def __init__(self,a,b,c,d,e,f,g):
         self.a = a
         self.b = b
         self.c = c
         self.d = d
         self.e = e
+        self.f = f
+        self.g = g
 
     def save_first_krw(self):
         f = open("krw_balance.txt", "w")
@@ -137,6 +139,16 @@ class save(object):
     def save_counting(self):
         f = open("counting.txt", "w")
         f.write(str(self.e))
+        f.close()
+
+    def save_add_price(self):
+        f = open("add_price.txt", "w")
+        f.write(str(self.f))
+        f.close()
+
+    def save_circul_cnt(self):
+        f = open("circul_cnt.txt", "w")
+        f.write(str(self.g))
         f.close()
 # ------------------------------------------------------
 
@@ -178,6 +190,18 @@ class read(object):
         counting = float(f.readline())
         f.close()
         return counting
+
+    def read_add_price(self):  
+        f = open("add_price.txt", "r")
+        add_price = float(f.readline())
+        f.close()
+        return add_price
+
+    def read_circul_cnt(self):  
+        f = open("circul_cnt.txt", "r")
+        circul_cnt = float(f.readline())
+        f.close()
+        return circul_cnt
 # --------------------------------------------------------------------
 
 # 텔레그램 봇 함수
@@ -242,7 +266,8 @@ r = read()
 rsi = RSI(btc)
 c = coin(btc)
 st = -5000
-tt = 30
+rsi_up = 70
+rsi_down = 30
 
 while True:
     
@@ -264,11 +289,11 @@ while True:
 
         # 첫 매수
         # RSI 꺾인 지점이 30미만이면 매수
-        if before_rsi < tt and before_rsi < now_rsi and c.get_balance() == 0:
+        if before_rsi < rsi_down and before_rsi < now_rsi and c.get_balance() == 0:
 
             if c.get_balance_krw() > 0:
 
-                #최초 원화 잔고 저장
+                # 최초 원화 잔고 저장
                 fir_krw = c.get_balance_krw()
                 s = save(fir_krw,0,0,0,0)
                 s.save_first_krw()
@@ -276,9 +301,6 @@ while True:
                 vol = fir_krw / 20
 
                 upbit.buy_market_order(btc, vol*0.9995) # 매수 시 수수료 0.05%
-
-                # 텔레그램 봇으로 알림
-                bot.sendMessage(chat_id=user_id, text="첫 매수 완료")
 
                 # 매수 한 시간
                 t = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -293,15 +315,15 @@ while True:
                 accumulated_volume = vol*0.9995
 
                 # 정보 저장
-                s = save(0,after_time,accumulated_volume,ap,1)
+                # 초기 원화 잔고 - 기준 매수 시간 - 축적 매수량 - 평균 매수가 - 카운팅 - 추가 매수가 - 순환매 가능 여부
+                s = save(0,after_time,accumulated_volume,ap,1,0,0)
                 s.save_after_time()
                 s.save_accumulated_volume()
                 s.save_avg_price()
                 s.save_counting()
+                s.save_add_price()
+                s.save_circul_cnt()
 
-                # 매매일지 작성  
-                wtl = write_trading_log(t, accumulated_volume, ap, accumulated_volume, "", "", r.read_first_krw())
-                wtl.write_trade_log()
 
         # 현 상태 표시
         if c.get_balance() == 0:             
@@ -321,14 +343,21 @@ while True:
             after_time = r.read_after_time()
             accumulated_volume = r.read_accumulated_volume()
             avg_buy_price = r.read_avg_price()
+            add_price = r.read_add_price()
             counting = r.read_counting()
+            circul_cnt = r.read_circul_cnt()
+
             now_earning_rate = round((c.get_current_price() - avg_buy_price) / avg_buy_price * 100, 2)
+
+            if add_price > 0:
+                add_earning_rate = round((c.get_current_price() - add_price) / add_price * 100, 2)
 
             # 현재 수익률(%)
 
             print("현재 수익률:", now_earning_rate,"%")
+            if add_price > 0:
+                print("추가 수익률:", add_earning_rate,"%")
             print("현재 수익금:", round(accumulated_volume * now_earning_rate / 100), "KRW")
-            print("기준 수익금:", round((accumulated_volume * now_earning_rate / 100)-accumulated_volume*0.002), "KRW")
             print("현재가 :", round(c.get_current_price()), "KRW")
             
             start_handler = MessageHandler(Filters.text & (~Filters.command), send_message_bot)
@@ -348,31 +377,99 @@ while True:
                 else:
 
                     mp = -1
-                
+
+
+                # 순환매
                 # 손실률 1% 이하이고 RSI 꺾인 부분 30 이하이면 현재 보유 수량만큼 추가 매수
-                if now_earning_rate < float(mp): 
+                if now_earning_rate < float(mp) and before_rsi < rsi_down and before_rsi < now_rsi: 
                     
-                    if before_rsi < tt and before_rsi < now_rsi:
-                        
-                        # 첫번째 추가 매수
-                        if counting == 1:
+                    # 첫번째 추가 매수
+                    if counting == 1:
 
-                            upbit.buy_market_order(btc, vol*0.9995) # 매수 시 수수료 0.05%
+                        upbit.buy_market_order(btc, vol*0.9995) # 매수 시 수수료 0.05%
 
-                            # 텔레그램 봇으로 알림
-                            bot.sendMessage(chat_id=user_id, text="추가 매수 완료")
+                        # 매수 한 시간
+                        t = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+                        # 매수 한 다음 5분봉 기준 시간
+                        after_time = c.get_minute_bar().iloc[[199]].index[0] + datetime.timedelta(minutes=5)
+    
+                        # 평균 매수가
+                        ap = float(c.get_avg_price())
+
+                        # 추가 매수가
+                        add_price = 2 * ap - avg_buy_price
+
+                        # 축적 매수량
+                        accumulated_volume = r.read_accumulated_volume() + vol*0.9995
+
+                        # 정보 저장
+                        # 초기 원화 잔고 - 기준 매수 시간 - 축적 매수량 - 평균 매수가 - 카운팅 - 추가 매수가 - 순환매 가능 여부
+                        s = save(0,after_time,accumulated_volume,ap,counting+1,add_price,1)
+                        s.save_after_time()
+                        s.save_accumulated_volume()
+                        s.save_avg_price()
+                        s.save_counting()
+                        s.save_add_price()
+                        s.save_circul_cnt()
+
+
+                    # 매수 3번째 이상
+                    if counting > 1:
+        
+                        if c.get_balance_krw() > vol*(2**(counting-1))*0.9995:
+
+                            upbit.buy_market_order(btc, vol*(2**(counting-1))*0.9995) # 매수 시 수수료 0.05%
 
                             # 매수 한 시간
                             t = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
                             # 매수 한 다음 5분봉 기준 시간
                             after_time = c.get_minute_bar().iloc[[199]].index[0] + datetime.timedelta(minutes=5)
-        
+
+                            # 평균 매수가
+                            ap = float(c.get_avg_price())
+
+                            # 추가 매수가
+                            add_price = 2 * ap - avg_buy_price
+
+                            # 축적 매수량
+                            accumulated_volume = r.read_accumulated_volume() + vol*(2**(counting-1))*0.9995
+
+                            # 정보 저장
+                            # 초기 원화 잔고 - 기준 매수 시간 - 축적 매수량 - 평균 매수가 - 카운팅 - 추가 매수가 - 순환매 가능 여부
+                            s = save(0,after_time,accumulated_volume,ap,counting+1,add_price,1)
+                            s.save_after_time()
+                            s.save_accumulated_volume()
+                            s.save_avg_price()
+                            s.save_counting()
+                            s.save_add_price()
+                            s.save_circul_cnt()
+
+
+                        # 물 탈 금액 부족할 때 최종 매수
+                        # ----------------------------------------------------------------------------------------------------
+                        else:
+
+                            fb = c.get_balance_krw()*0.9995
+
+                            upbit.buy_market_order(btc, fb) # 매수 시 수수료 0.05%
+
+                            # 텔레그램 봇으로 알림
+                            bot.sendMessage(chat_id=user_id, text="최종 매수 완료")
+
+                            # 매수 한 시간
+                            t = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+                            # 매수 한 다음 5분봉 기준 시간
+                            after_time = c.get_minute_bar().iloc[[199]].index[0] + datetime.timedelta(minutes=5)
+
                             # 평균 매수가
                             ap = float(c.get_avg_price())
 
                             # 축적 매수량
-                            accumulated_volume = r.read_accumulated_volume() + vol*0.9995
+                            accumulated_volume = r.read_accumulated_volume() + fb
+
 
                             # 정보 저장
                             s = save(0,after_time,accumulated_volume,ap,counting+1)
@@ -381,108 +478,52 @@ while True:
                             s.save_avg_price()
                             s.save_counting()
 
-                            # 매매일지 작성
-                            wtl = write_trading_log(t, vol*0.9995, ap, accumulated_volume, "", "", r.read_first_krw())
-                            wtl.write_trade_log()
+                        # ----------------------------------------------------------------------------------------------------
 
-
-                        # 매수 3번째 이상
-                        if counting > 1.0:
-            
-                            if c.get_balance_krw() > vol*(2**(counting-1))*0.9995:
-
-                                upbit.buy_market_order(btc, vol*(2**(counting-1))*0.9995) # 매수 시 수수료 0.05%
-
-                                # 텔레그램 봇으로 알림
-                                bot.sendMessage(chat_id=user_id, text="추가 매수 완료")
-
-                                # 매수 한 시간
-                                t = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-                                # 매수 한 다음 5분봉 기준 시간
-                                after_time = c.get_minute_bar().iloc[[199]].index[0] + datetime.timedelta(minutes=5)
-
-                                # 평균 매수가
-                                ap = float(c.get_avg_price())
-
-                                # 축적 매수량
-                                accumulated_volume = r.read_accumulated_volume() + vol*(2**(counting-1))*0.9995
-
-                                # 정보 저장
-                                s = save(0,after_time,accumulated_volume,ap,counting+1)
-                                s.save_after_time()
-                                s.save_accumulated_volume()
-                                s.save_avg_price()
-                                s.save_counting()
-
-                                # 매매일지 작성
-                                wtl = write_trading_log(t, vol*(2**(counting-1))*0.9995, ap, accumulated_volume, "", "", r.read_first_krw())
-                                wtl.write_trade_log()
-
-
-                            # 물 탈 금액 부족할 때 최종 매수
-                            else:
-
-                                fb = c.get_balance_krw()*0.9995
-
-                                upbit.buy_market_order(btc, fb) # 매수 시 수수료 0.05%
-
-                                # 텔레그램 봇으로 알림
-                                bot.sendMessage(chat_id=user_id, text="최종 매수 완료")
-
-                                # 매수 한 시간
-                                t = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-                                # 매수 한 다음 5분봉 기준 시간
-                                after_time = c.get_minute_bar().iloc[[199]].index[0] + datetime.timedelta(minutes=5)
-
-                                # 평균 매수가
-                                ap = float(c.get_avg_price())
-
-                                # 축적 매수량
-                                accumulated_volume = r.read_accumulated_volume() + fb
-
-
-                                # 정보 저장
-                                s = save(0,after_time,accumulated_volume,ap,counting+1)
-                                s.save_after_time()
-                                s.save_accumulated_volume()
-                                s.save_avg_price()
-                                s.save_counting()
-
-                                # 매매일지 작성
-                                wtl = write_trading_log(t, fb, ap, accumulated_volume, "", "", r.read_first_krw())
-                                wtl.write_trade_log()
             else:
                 print("아직 다음봉 갱신 안 됨")
 
 
-            # RSI 꺾인 지점 70 이상이면 전량 시장가 매도
-            if before_rsi > 70 and before_rsi > now_rsi and (accumulated_volume * now_earning_rate / 100)-accumulated_volume*0.002 > 0:
-
-                upbit.sell_market_order(btc, c.get_balance())
-
-                # 최종 수익률
-                earning = c.get_balance_krw() - first_krw_balance
-                earning_rate = earning / first_krw_balance
-
-                # 텔레그램 봇으로 알림
-                s1 = "전량 익절 완료 \n"
-                s2 = "최종 수익률 : " + str(earning_rate) + " %\n"
-                s3 = "최종 수익금 : " + str(earning) + " KRW"
-
-                ss = s1+s2+s3
-
-                bot.sendMessage(chat_id=user_id, text=ss)
+            # 매도
+            # RSI 꺾인 지점 70 이상
+            if c.get_balance() > 0 and before_rsi > rsi_up and before_rsi > now_rsi:
 
 
-                # 매도 시간
-                t = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                # 수익률 0.2% 이상이면 전량 매도
+                if now_earning_rate > 0.2:
+
+                    upbit.sell_market_order(btc, c.get_balance())
+
+                    # 정보 저장
+                    # 초기 원화 잔고 - 기준 매수 시간 - 축적 매수량 - 평균 매수가 - 카운팅 - 추가 매수가 - 순환매 가능 여부
+                    s = save(0,0,0,0,0,0,0)
+                    s.save_add_price()
 
 
-                # 매매일지 작성
-                wtl = write_trading_log(t, "", "", "", earning, earning_rate, c.get_balance_krw())
-                wtl.write_trade_log()
+                # 순환매
+                # 두 번 이상 매도한 경우 - 평균가 밑, 새로 매수 한 가격보다는 상승 - 절반 매도
+                if  c.get_current_price() < avg_buy_price and add_earning_rate > 0.2 and circul_cnt == 1:
+
+                    if 1 < counting < 6:
+
+                        qty = c.get_balance()/2
+
+                        upbit.sell_market_order(btc, qty)
+
+                        accumulated_volume = c.get_balance()
+
+                        counting = counting-1
+
+                        circul_cnt = 0
+
+                        # 정보 저장
+                        # 초기 원화 잔고 - 기준 매수 시간 - 축적 매수량 - 평균 매수가 - 카운팅 - 추가 매수가 - 순환매 가능 여부
+                        s = save(0,0,accumulated_volume,0,counting,0,circul_cnt)
+
+                        s.save_accumulated_volume()
+                        s.save_counting()
+                        s.save_circul_cnt()
+
 
 
             # 원화 잔고 부족, 손실률 몇 % 이하시 전량 시장가 매도
@@ -502,25 +543,6 @@ while True:
                 if (c.get_current_price() - avg_buy_price) / avg_buy_price * 100 < float(loss) and c.get_balance_krw() < 5000:
 
                     upbit.sell_market_order(btc, c.get_balance())
-
-                    # 최종 수익률
-                    earning = c.get_balance_krw() - first_krw_balance
-                    earning_rate = earning / first_krw_balance
-
-                    # 텔레그램 봇으로 알림
-                    s1 = "전량 손절 완료 \n"
-                    s2 = "최종 수익률 : " + str(earning_rate) + " %\n"
-                    s3 = "최종 수익금 : " + str(earning) + " KRW"
-
-                    ss = s1+s2+s3
-                    
-                    bot.sendMessage(chat_id=user_id, text=ss)
-
-                    t = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-                    # 매매일지 작성
-                    wtl = write_trading_log(t, "", "", "", earning, earning_rate, c.get_balance_krw())
-                    wtl.write_trade_log()
 
                 
 
